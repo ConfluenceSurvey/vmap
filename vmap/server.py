@@ -30,6 +30,27 @@ def index():
     return app.send_static_file("index.html")
 
 
+@app.route("/api/test-tiles")
+def test_tiles():
+    """Debug endpoint to test tile fetching."""
+    try:
+        from .tiles import fetch_tile_image
+        # Small test area (Golden Gate Bridge)
+        png_bytes, bounds = fetch_tile_image(37.81, -122.48, 37.82, -122.47, source="esri_satellite")
+        return jsonify({
+            "success": True,
+            "image_size_bytes": len(png_bytes),
+            "bounds": bounds
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
 @app.route("/api/generate", methods=["POST"])
 def generate():
     data = request.get_json(force=True)
