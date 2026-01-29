@@ -1,7 +1,9 @@
 """Flask application with /api/generate endpoint."""
 
 import os
+import io
 import math
+import zipfile
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request, send_file
@@ -80,31 +82,52 @@ def generate():
 
     # Fetch background imagery if requested
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    image_path = None
+    image_filename = None
+    image_bytes = None
     image_bounds = None
 
     if imagery != "none":
         try:
-            png_bytes, image_bounds = fetch_tile_image(
+            image_bytes, image_bounds = fetch_tile_image(
                 south, west, north, east, source=imagery)
+            # Use relative filename for DXF reference
             image_filename = f"vicinity_bg_{ts}.png"
-            image_path = os.path.join(OUTPUT_DIR, image_filename)
-            with open(image_path, "wb") as f:
-                f.write(png_bytes)
         except Exception as exc:
             return jsonify({"error": f"Tile download failed: {exc}"}), 502
 
-    # Build DXF
+    # Build DXF with relative image path (just filename, not full path)
     projector = Projector(south, west, north, east, units)
     doc = build_dxf(features, projector, south, west, north, east,
                     units, uppercase, text_type,
-                    image_path=image_path, image_bounds=image_bounds)
+                    image_path=image_filename, image_bounds=image_bounds)
 
-    # Save to output/
-    filename = f"vicinity_map_{ts}.dxf"
-    filepath = os.path.join(OUTPUT_DIR, filename)
-    doc.saveas(filepath)
+    # Save DXF to memory
+    dxf_stream = io.BytesIO()
+    doc.write(dxf_stream)
+    dxf_bytes = dxf_stream.getvalue()
+    dxf_filename = f"vicinity_map_{ts}.dxf"
 
-    # Send saved file as download
-    return send_file(filepath, download_name=filename, as_attachment=True,
-                     mimetype="application/dxf")
+    # If no imagery, return just the DXF
+    if image_bytes is None:
+        return send_file(
+            io.BytesIO(dxf_bytes),
+            download_name=dxf_filename,
+            as_attachment=True,
+            mimetype="application/dxf"
+        )
+
+    # With imagery, return a ZIP containing both DXF and PNG
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(dxf_filename, dxf_bytes)
+        zf.writestr(image_filename, image_bytes)
+
+    zip_buffer.seek(0)
+    zip_filename = f"vicinity_map_{ts}.zip"
+
+    return send_file(
+        zip_buffer,
+        download_name=zip_filename,
+        as_attachment=True,
+        mimetype="application/zip"
+    )

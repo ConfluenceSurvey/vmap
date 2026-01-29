@@ -2,9 +2,12 @@
 
 import io
 import math
+import logging
 
 import requests
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 # Tile sources the user can choose from
 TILE_SOURCES = {
@@ -96,8 +99,9 @@ def fetch_tile_image(south: float, west: float, north: float, east: float,
                 px = (tx - x0) * 256
                 py = (ty - y0) * 256
                 canvas.paste(tile, (px, py))
-            except Exception:
-                pass  # leave black for missing tiles
+            except Exception as e:
+                logger.warning(f"Failed to fetch tile {url}: {e}")
+                # leave black for missing tiles
 
     # Compute exact geographic bounds of the stitched image
     img_north, img_west = _tile_to_lat_lon(x0, y0, zoom)
