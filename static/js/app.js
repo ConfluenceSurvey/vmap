@@ -2,10 +2,27 @@
 
 const map = L.map("map").setView([39.5, -98.35], 5);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
-    maxZoom: 19,
-}).addTo(map);
+// Base layers for preview
+const baseLayers = {
+    "OpenStreetMap": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19,
+    }),
+    "Esri Satellite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "&copy; Esri",
+        maxZoom: 18,
+    }),
+    "Esri Topo": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "&copy; Esri",
+        maxZoom: 18,
+    }),
+};
+
+// Add default layer
+baseLayers["OpenStreetMap"].addTo(map);
+
+// Add layer control to top-right
+L.control.layers(baseLayers, null, { position: "topright" }).addTo(map);
 
 // Drawing layer
 const drawnItems = new L.FeatureGroup();
@@ -107,8 +124,8 @@ btnGenerate.addEventListener("click", async function () {
 
     btnGenerate.disabled = true;
     const statusMsg = imagery !== "none"
-        ? "Fetching features and imagery\u2026"
-        : "Fetching features and generating DXF\u2026";
+        ? "Fetching features and imagery…"
+        : "Fetching features and generating DXF…";
     setStatus(statusMsg, "loading");
 
     try {
@@ -127,7 +144,7 @@ btnGenerate.addEventListener("click", async function () {
         const blob = await resp.blob();
         const disposition = resp.headers.get("Content-Disposition") || "";
         const match = disposition.match(/filename="?(.+?)"?$/);
-        const filename = match ? match[1] : "vicinity_map.dxf";
+        const filename = match ? match[1] : (imagery !== "none" ? "vicinity_map.zip" : "vicinity_map.dxf");
 
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -138,7 +155,10 @@ btnGenerate.addEventListener("click", async function () {
         a.remove();
         URL.revokeObjectURL(url);
 
-        setStatus("DXF generated and downloaded.", "success");
+        const successMsg = imagery !== "none"
+            ? "ZIP downloaded! Extract both files to the same folder, then open the DXF."
+            : "DXF generated and downloaded.";
+        setStatus(successMsg, "success");
     } catch (err) {
         setStatus(err.message, "error");
     } finally {
