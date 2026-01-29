@@ -1,0 +1,17 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: vmap
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn vmap.server:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    # Optional: Add disk for persistent output storage
+    # disk:
+    #   name: vmap-output
+    #   mountPath: /opt/render/project/src/output
+    #   sizeGB: 1

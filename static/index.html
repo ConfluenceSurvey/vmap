@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VMAP - Vicinity Map Generator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div id="sidebar">
+        <h1>VMAP</h1>
+        <p class="subtitle">Vicinity Map Generator</p>
+
+        <div class="controls">
+            <label for="units">Drawing Units</label>
+            <select id="units">
+                <option value="feet" selected>International Feet</option>
+                <option value="meters">Meters</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <label>
+                <input type="checkbox" id="uppercase" checked />
+                ALL CAPS labels
+            </label>
+        </div>
+
+        <div class="controls">
+            <label for="text-type">Label Type</label>
+            <select id="text-type">
+                <option value="text" selected>TEXT</option>
+                <option value="mtext">MTEXT</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <label>Layers</label>
+            <div class="layer-checkboxes">
+                <label><input type="checkbox" name="layer" value="roads" checked /> Roads</label>
+                <label><input type="checkbox" name="layer" value="buildings" /> Buildings</label>
+                <label><input type="checkbox" name="layer" value="water" /> Water</label>
+                <label><input type="checkbox" name="layer" value="railways" /> Railways</label>
+                <label><input type="checkbox" name="layer" value="paths" /> Paths &amp; Trails</label>
+                <label><input type="checkbox" name="layer" value="power_lines" /> Power Lines</label>
+                <label><input type="checkbox" name="layer" value="landuse" /> Land Use</label>
+                <label><input type="checkbox" name="layer" value="parking" /> Parking</label>
+                <label><input type="checkbox" name="layer" value="boundaries" /> Property Boundaries</label>
+            </div>
+        </div>
+
+        <div class="controls">
+            <label for="imagery">Background Imagery</label>
+            <select id="imagery">
+                <option value="none" selected>None</option>
+                <option value="esri_satellite">Esri Satellite</option>
+                <option value="osm">OpenStreetMap</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <p class="hint">Draw a rectangle on the map to select the area for your vicinity map.</p>
+        </div>
+
+        <div id="bounds-info" class="bounds-info" style="display:none;">
+            <h3>Selection</h3>
+            <table>
+                <tr><td>North</td><td id="val-north"></td></tr>
+                <tr><td>South</td><td id="val-south"></td></tr>
+                <tr><td>East</td><td id="val-east"></td></tr>
+                <tr><td>West</td><td id="val-west"></td></tr>
+            </table>
+        </div>
+
+        <button id="btn-generate" disabled>Generate DXF</button>
+
+        <div id="status" class="status"></div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+flask>=3.0
+ezdxf>=0.18
+requests>=2.31
+Pillow>=10.0
+Shapely>=2.0
+gunicorn>=21.0
