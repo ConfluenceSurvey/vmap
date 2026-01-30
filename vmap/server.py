@@ -117,15 +117,20 @@ def generate():
             return jsonify({"error": f"Tile download failed: {exc}"}), 502
 
     # Build DXF with relative image path (just filename, not full path)
-    projector = Projector(south, west, north, east, units)
-    doc = build_dxf(features, projector, south, west, north, east,
-                    units, uppercase, text_type,
-                    image_path=image_filename, image_bounds=image_bounds)
+    try:
+        projector = Projector(south, west, north, east, units)
+        doc = build_dxf(features, projector, south, west, north, east,
+                        units, uppercase, text_type,
+                        image_path=image_filename, image_bounds=image_bounds)
 
-    # Save DXF to memory (ezdxf.write requires a text stream)
-    dxf_stream = io.StringIO()
-    doc.write(dxf_stream)
-    dxf_bytes = dxf_stream.getvalue().encode('utf-8')
+        # Save DXF to memory (ezdxf.write requires a text stream)
+        dxf_stream = io.StringIO()
+        doc.write(dxf_stream)
+        dxf_bytes = dxf_stream.getvalue().encode('utf-8')
+    except Exception as exc:
+        import traceback
+        return jsonify({"error": f"DXF generation failed: {exc}", "traceback": traceback.format_exc()}), 500
+
     dxf_filename = f"vicinity_map_{ts}.dxf"
 
     # If no imagery, return just the DXF
