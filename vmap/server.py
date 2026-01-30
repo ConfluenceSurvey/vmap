@@ -122,10 +122,10 @@ def generate():
                     units, uppercase, text_type,
                     image_path=image_filename, image_bounds=image_bounds)
 
-    # Save DXF to memory
-    dxf_stream = io.BytesIO()
+    # Save DXF to memory (ezdxf.write requires a text stream)
+    dxf_stream = io.StringIO()
     doc.write(dxf_stream)
-    dxf_bytes = dxf_stream.getvalue()
+    dxf_bytes = dxf_stream.getvalue().encode('utf-8')
     dxf_filename = f"vicinity_map_{ts}.dxf"
 
     # If no imagery, return just the DXF
