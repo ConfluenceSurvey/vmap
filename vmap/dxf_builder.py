@@ -176,6 +176,7 @@ def build_dxf(features: dict[str, list[Feature]], projector: Projector,
               units: str = "feet",
               uppercase: bool = True,
               text_type: str = "text",
+              show_labels: bool = True,
               image_path: str | None = None,
               image_bounds: tuple[float, float, float, float] | None = None,
               ) -> ezdxf.document.Drawing:
@@ -260,7 +261,7 @@ def build_dxf(features: dict[str, list[Feature]], projector: Projector,
                 },
             )
 
-        if not feat.name or not clipped_lines:
+        if not show_labels or not feat.name or not clipped_lines:
             continue
 
         # Label on the longest clipped segment
@@ -325,7 +326,7 @@ def build_dxf(features: dict[str, list[Feature]], projector: Projector,
                         },
                     )
 
-            if not do_label or not feat.name or not clipped_parts:
+            if not show_labels or not do_label or not feat.name or not clipped_parts:
                 continue
 
             if feat.is_area:

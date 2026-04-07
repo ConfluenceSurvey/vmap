@@ -97,6 +97,7 @@ btnGenerate.addEventListener("click", async function () {
     if (!currentBounds) return;
 
     const units = document.getElementById("units").value;
+    const showLabels = document.getElementById("show-labels").checked;
     const uppercase = document.getElementById("uppercase").checked;
     const textType = document.getElementById("text-type").value;
     const layers = [...document.querySelectorAll('input[name="layer"]:checked')].map(el => el.value);
@@ -117,6 +118,7 @@ btnGenerate.addEventListener("click", async function () {
         north: currentBounds.getNorth(),
         east: currentBounds.getEast(),
         units: units,
+        show_labels: showLabels,
         uppercase: uppercase,
         text_type: textType,
         layers: effectiveLayers,

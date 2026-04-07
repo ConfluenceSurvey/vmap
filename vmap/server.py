@@ -65,6 +65,7 @@ def generate():
         layers = data.get("layers", ["roads"])
         imagery = data.get("imagery", "none")
         road_detail = data.get("road_detail", "full")
+        show_labels = bool(data.get("show_labels", True))
     except (KeyError, TypeError, ValueError) as exc:
         return jsonify({"error": f"Invalid parameters: {exc}"}), 400
 
@@ -125,6 +126,7 @@ def generate():
         projector = Projector(south, west, north, east, units)
         doc = build_dxf(features, projector, south, west, north, east,
                         units, uppercase, text_type,
+                        show_labels=show_labels,
                         image_path=image_filename, image_bounds=image_bounds)
 
         # Save DXF to memory (ezdxf.write requires a text stream)
