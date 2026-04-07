@@ -101,6 +101,7 @@ btnGenerate.addEventListener("click", async function () {
     const textType = document.getElementById("text-type").value;
     const layers = [...document.querySelectorAll('input[name="layer"]:checked')].map(el => el.value);
     const imagery = document.getElementById("imagery").value;
+    const roadDetail = document.getElementById("road-detail").value;
 
     if (layers.length === 0 && imagery === "none") {
         setStatus("Select at least one layer or background imagery.", "error");
@@ -120,6 +121,7 @@ btnGenerate.addEventListener("click", async function () {
         text_type: textType,
         layers: effectiveLayers,
         imagery: imagery,
+        road_detail: roadDetail,
     };
 
     btnGenerate.disabled = true;

@@ -37,6 +37,15 @@
         </div>
 
         <div class="controls">
+            <label for="road-detail">Road Detail</label>
+            <select id="road-detail">
+                <option value="major">Major Only (highways, primary)</option>
+                <option value="moderate">Moderate (+ secondary, tertiary)</option>
+                <option value="full" selected>Full (all roads)</option>
+            </select>
+        </div>
+
+        <div class="controls">
             <label>Layers</label>
             <div class="layer-checkboxes">
                 <label><input type="checkbox" name="layer" value="roads" checked /> Roads</label>

@@ -64,6 +64,7 @@ def generate():
         text_type = data.get("text_type", "text")
         layers = data.get("layers", ["roads"])
         imagery = data.get("imagery", "none")
+        road_detail = data.get("road_detail", "full")
     except (KeyError, TypeError, ValueError) as exc:
         return jsonify({"error": f"Invalid parameters: {exc}"}), 400
 
@@ -75,6 +76,9 @@ def generate():
 
     if imagery not in ("none", *TILE_SOURCES.keys()):
         return jsonify({"error": f"imagery must be 'none' or one of {list(TILE_SOURCES.keys())}"}), 400
+
+    if road_detail not in ("major", "moderate", "full"):
+        return jsonify({"error": "road_detail must be 'major', 'moderate', or 'full'"}), 400
 
     if not isinstance(layers, list) or not layers:
         return jsonify({"error": "layers must be a non-empty list"}), 400
@@ -93,7 +97,7 @@ def generate():
 
     # Fetch features
     try:
-        features = fetch_features(south, west, north, east, layers)
+        features = fetch_features(south, west, north, east, layers, road_detail=road_detail)
     except Exception as exc:
         return jsonify({"error": f"Overpass query failed: {exc}"}), 502
 

@@ -19,6 +19,14 @@ HIGHWAY_TYPES = [
     "unclassified",
 ]
 
+# Road detail levels — higher = more road types included
+ROAD_DETAIL_LEVELS = {
+    "major": ["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link"],
+    "moderate": ["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link",
+                 "secondary", "secondary_link", "tertiary", "tertiary_link"],
+    "full": HIGHWAY_TYPES,
+}
+
 PATH_TYPES = [
     "footway", "cycleway", "path", "track",
     "pedestrian", "bridleway", "steps",
@@ -55,12 +63,14 @@ class Feature:
     is_area: bool = False
 
 
-def _build_query(bbox: str, layers: list[str], timeout: int) -> str:
+def _build_query(bbox: str, layers: list[str], timeout: int,
+                  road_detail: str = "full") -> str:
     """Build an Overpass QL query for the requested layers."""
     parts = []
 
     if "roads" in layers:
-        highway_filter = "|".join(HIGHWAY_TYPES)
+        road_types = ROAD_DETAIL_LEVELS.get(road_detail, HIGHWAY_TYPES)
+        highway_filter = "|".join(road_types)
         parts.append(f'way["highway"~"^({highway_filter})$"]({bbox});')
 
     if "buildings" in layers:
@@ -104,11 +114,13 @@ def _build_query(bbox: str, layers: list[str], timeout: int) -> str:
     """
 
 
-def _classify(tags: dict, layers: list[str]) -> tuple[str, str, bool] | None:
+def _classify(tags: dict, layers: list[str],
+              road_detail: str = "full") -> tuple[str, str, bool] | None:
     """Classify a way into (layer, feature_type, is_area) or None if no match."""
     highway = tags.get("highway", "")
+    road_types = ROAD_DETAIL_LEVELS.get(road_detail, HIGHWAY_TYPES)
 
-    if "roads" in layers and highway in HIGHWAY_TYPES:
+    if "roads" in layers and highway in road_types:
         return ("roads", highway, False)
 
     if "paths" in layers and highway in PATH_TYPES:
@@ -165,7 +177,8 @@ def _fetch_overpass(query: str, timeout: int) -> dict:
 
 def fetch_features(south: float, west: float, north: float, east: float,
                    layers: list[str] | None = None,
-                   timeout: int = 90) -> dict[str, list[Feature]]:
+                   timeout: int = 90,
+                   road_detail: str = "full") -> dict[str, list[Feature]]:
     """Fetch OSM features for the requested layers.
 
     Returns a dict mapping layer name to list of Feature objects.
@@ -178,7 +191,7 @@ def fetch_features(south: float, west: float, north: float, east: float,
         return {}
 
     bbox = f"{south},{west},{north},{east}"
-    query = _build_query(bbox, layers, timeout)
+    query = _build_query(bbox, layers, timeout, road_detail)
     data = _fetch_overpass(query, timeout)
 
     # Build node lookup
@@ -194,7 +207,7 @@ def fetch_features(south: float, west: float, north: float, east: float,
         if el["type"] != "way":
             continue
         tags = el.get("tags", {})
-        classification = _classify(tags, layers)
+        classification = _classify(tags, layers, road_detail)
         if classification is None:
             continue
 
