@@ -152,6 +152,10 @@ def _fetch_overpass(query: str, timeout: int) -> dict:
         try:
             resp = requests.post(url, data={"data": query}, timeout=timeout + 30)
             resp.raise_for_status()
+            # Overpass sometimes returns 200 with HTML error body
+            content_type = resp.headers.get("content-type", "")
+            if "json" not in content_type:
+                raise ValueError(f"Overpass returned non-JSON response ({content_type})")
             return resp.json()
         except Exception as exc:
             last_err = exc

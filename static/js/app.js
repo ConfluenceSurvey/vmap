@@ -136,8 +136,16 @@ btnGenerate.addEventListener("click", async function () {
         });
 
         if (!resp.ok) {
-            const err = await resp.json();
-            throw new Error(err.error || `Server error ${resp.status}`);
+            let errMsg = `Server error ${resp.status}`;
+            try {
+                const err = await resp.json();
+                errMsg = err.error || errMsg;
+            } catch {
+                // Response wasn't JSON (e.g., HTML error page from proxy)
+                const text = await resp.text().catch(() => "");
+                if (text.length < 200) errMsg = text || errMsg;
+            }
+            throw new Error(errMsg);
         }
 
         // Download the file
