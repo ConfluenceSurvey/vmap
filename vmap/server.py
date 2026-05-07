@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request, send_file
 
-from .overpass import fetch_features, AVAILABLE_LAYERS
+from .overpass import fetch_features, fetch_features_tiled, AVAILABLE_LAYERS
 from .projection import Projector
 from .dxf_builder import build_dxf
 from .tiles import fetch_tile_image, TILE_SOURCES
@@ -22,7 +22,17 @@ app = Flask(__name__, static_folder=STATIC_DIR, static_url_path="")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-MAX_AREA_KM2 = 25.0
+# Single Overpass queries are reliable up to roughly this area.
+DIRECT_QUERY_MAX_AREA_KM2 = 25.0
+# Safety brake to avoid pathological requests that can exhaust memory/time.
+MAX_EXPORT_AREA_KM2 = 2000.0
+LARGE_AREA_PROFILES = {
+    # Larger tiles and shorter timeout = faster overall, but more likely to miss sparse edge cases.
+    "fast": {"max_tile_area_km2": DIRECT_QUERY_MAX_AREA_KM2 * 1.4, "timeout": 75},
+    "balanced": {"max_tile_area_km2": DIRECT_QUERY_MAX_AREA_KM2 * 0.8, "timeout": 90},
+    # Smaller tiles and longer timeout = most resilient for difficult extracts.
+    "detailed": {"max_tile_area_km2": DIRECT_QUERY_MAX_AREA_KM2 * 0.45, "timeout": 120},
+}
 
 
 @app.route("/")
@@ -66,6 +76,7 @@ def generate():
         imagery = data.get("imagery", "none")
         road_detail = data.get("road_detail", "full")
         show_labels = bool(data.get("show_labels", True))
+        large_area_mode = data.get("large_area_mode", "balanced")
     except (KeyError, TypeError, ValueError) as exc:
         return jsonify({"error": f"Invalid parameters: {exc}"}), 400
 
@@ -80,6 +91,8 @@ def generate():
 
     if road_detail not in ("major", "moderate", "full"):
         return jsonify({"error": "road_detail must be 'major', 'moderate', or 'full'"}), 400
+    if large_area_mode not in LARGE_AREA_PROFILES:
+        return jsonify({"error": f"large_area_mode must be one of {list(LARGE_AREA_PROFILES.keys())}"}), 400
 
     if not isinstance(layers, list) or not layers:
         return jsonify({"error": "layers must be a non-empty list"}), 400
@@ -93,12 +106,25 @@ def generate():
     height_km = (north - south) * 111.32
     width_km = (east - west) * 111.32 * math.cos(lat_mid)
     area = abs(height_km * width_km)
-    if area > MAX_AREA_KM2:
-        return jsonify({"error": f"Selected area ~{area:.1f} km² exceeds {MAX_AREA_KM2} km² limit."}), 400
+    if area > MAX_EXPORT_AREA_KM2:
+        return jsonify({"error": f"Selected area ~{area:.1f} km² exceeds {MAX_EXPORT_AREA_KM2} km² maximum export area."}), 400
 
-    # Fetch features
+    # Fetch features. For large areas, auto-tile and merge instead of hard-failing.
     try:
-        features = fetch_features(south, west, north, east, layers, road_detail=road_detail)
+        if area > DIRECT_QUERY_MAX_AREA_KM2:
+            profile = LARGE_AREA_PROFILES[large_area_mode]
+            features = fetch_features_tiled(
+                south,
+                west,
+                north,
+                east,
+                layers=layers,
+                timeout=profile["timeout"],
+                road_detail=road_detail,
+                max_tile_area_km2=profile["max_tile_area_km2"],
+            )
+        else:
+            features = fetch_features(south, west, north, east, layers, road_detail=road_detail)
     except Exception as exc:
         return jsonify({"error": f"Overpass query failed: {exc}"}), 502
 

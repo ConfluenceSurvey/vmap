@@ -53,6 +53,15 @@
         </div>
 
         <div class="controls">
+            <label for="large-area-mode">Large Area Mode</label>
+            <select id="large-area-mode">
+                <option value="fast">Fast (coarser tiling, better for very large extents)</option>
+                <option value="balanced" selected>Balanced</option>
+                <option value="detailed">Detailed (finer tiling, slower)</option>
+            </select>
+        </div>
+
+        <div class="controls">
             <label>Layers</label>
             <div class="layer-checkboxes">
                 <label><input type="checkbox" name="layer" value="roads" checked /> Roads</label>

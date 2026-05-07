@@ -103,6 +103,7 @@ btnGenerate.addEventListener("click", async function () {
     const layers = [...document.querySelectorAll('input[name="layer"]:checked')].map(el => el.value);
     const imagery = document.getElementById("imagery").value;
     const roadDetail = document.getElementById("road-detail").value;
+    const largeAreaMode = document.getElementById("large-area-mode").value;
 
     if (layers.length === 0 && imagery === "none") {
         setStatus("Select at least one layer or background imagery.", "error");
@@ -111,6 +112,12 @@ btnGenerate.addEventListener("click", async function () {
 
     // Ensure at least one layer is sent (server requires non-empty list)
     const effectiveLayers = layers.length > 0 ? layers : ["roads"];
+
+    const latMid = ((currentBounds.getNorth() + currentBounds.getSouth()) / 2) * Math.PI / 180;
+    const heightKm = (currentBounds.getNorth() - currentBounds.getSouth()) * 111.32;
+    const widthKm = (currentBounds.getEast() - currentBounds.getWest()) * 111.32 * Math.cos(latMid);
+    const areaKm2 = Math.abs(heightKm * widthKm);
+    const isLargeSelection = areaKm2 > 25;
 
     const payload = {
         south: currentBounds.getSouth(),
@@ -124,12 +131,14 @@ btnGenerate.addEventListener("click", async function () {
         layers: effectiveLayers,
         imagery: imagery,
         road_detail: roadDetail,
+        large_area_mode: largeAreaMode,
     };
 
     btnGenerate.disabled = true;
+    const largeHint = isLargeSelection ? ` (large area: ${largeAreaMode} tiled fetch)` : "";
     const statusMsg = imagery !== "none"
-        ? "Fetching features and imagery…"
-        : "Fetching features and generating DXF…";
+        ? `Fetching features and imagery…${largeHint}`
+        : `Fetching features and generating DXF…${largeHint}`;
     setStatus(statusMsg, "loading");
 
     try {

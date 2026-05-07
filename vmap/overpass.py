@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 
+import math
 import requests
 
 OVERPASS_URLS = [
@@ -229,6 +230,90 @@ def fetch_features(south: float, west: float, north: float, east: float,
         ))
 
     return result
+
+
+def _feature_signature(feat: Feature) -> tuple:
+    """Stable signature for de-duplicating features merged from overlapping tiles."""
+    rounded_coords = tuple((round(lat, 7), round(lon, 7)) for lat, lon in feat.coords)
+    return (feat.layer, feat.feature_type, feat.name, feat.is_area, rounded_coords)
+
+
+def fetch_features_tiled(
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    layers: list[str] | None = None,
+    timeout: int = 90,
+    road_detail: str = "full",
+    max_tile_area_km2: float = 20.0,
+) -> dict[str, list[Feature]]:
+    """Fetch OSM features by splitting the bbox into manageable tiles and merging results.
+
+    This avoids hard-failing large selections that exceed safe single-query Overpass sizes.
+    """
+    if layers is None:
+        layers = ["roads"]
+    layers = [l for l in layers if l in AVAILABLE_LAYERS]
+    if not layers:
+        return {}
+
+    lat_span = max(0.0, north - south)
+    lon_span = max(0.0, east - west)
+    if lat_span == 0 or lon_span == 0:
+        return {l: [] for l in layers}
+
+    # Size tiles by approximate ground dimensions to keep each Overpass request bounded.
+    mid_lat_rad = math.radians((south + north) / 2.0)
+    height_km = lat_span * 111.32
+    width_km = lon_span * 111.32 * abs(math.cos(mid_lat_rad))
+    target_side_km = max(1.0, max_tile_area_km2 ** 0.5)
+    nx = max(1, int(math.ceil(width_km / target_side_km)))
+    ny = max(1, int(math.ceil(height_km / target_side_km)))
+
+    lat_step = lat_span / ny
+    lon_step = lon_span / nx
+    overlap = min(lat_step, lon_step) * 0.01  # 1% overlap to avoid seam misses.
+
+    merged: dict[str, list[Feature]] = {l: [] for l in layers}
+    seen: set[tuple] = set()
+
+    for iy in range(ny):
+        for ix in range(nx):
+            ts = south + iy * lat_step
+            tn = south + (iy + 1) * lat_step
+            tw = west + ix * lon_step
+            te = west + (ix + 1) * lon_step
+
+            # Slight overlap except on outer edges.
+            if iy > 0:
+                ts -= overlap
+            if iy < ny - 1:
+                tn += overlap
+            if ix > 0:
+                tw -= overlap
+            if ix < nx - 1:
+                te += overlap
+
+            tile_features = fetch_features(
+                ts,
+                tw,
+                tn,
+                te,
+                layers=layers,
+                timeout=timeout,
+                road_detail=road_detail,
+            )
+
+            for layer, feats in tile_features.items():
+                for feat in feats:
+                    sig = _feature_signature(feat)
+                    if sig in seen:
+                        continue
+                    seen.add(sig)
+                    merged[layer].append(feat)
+
+    return merged
 
 
 def fetch_roads(south: float, west: float, north: float, east: float,
