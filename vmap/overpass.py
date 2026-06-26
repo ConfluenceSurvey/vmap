@@ -3,12 +3,24 @@
 from dataclasses import dataclass, field
 
 import math
+import time
 import requests
 
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.osm.ch/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ]
+
+# The OSM/Overpass usage policy requires a descriptive User-Agent that
+# identifies the application. Public mirrors reject the default
+# "python-requests/x.y.z" UA outright (HTTP 406) and/or rate-limit it
+# aggressively (HTTP 429), which is the #1 cause of "Overpass query failed".
+OVERPASS_HEADERS = {
+    "User-Agent": "VMAP/1.0 Vicinity Map Generator (+https://vmap.surveybible.com)",
+    "Referer": "https://vmap.surveybible.com/",
+}
 
 HIGHWAY_TYPES = [
     "motorway", "motorway_link",
@@ -159,20 +171,39 @@ def _classify(tags: dict, layers: list[str],
 
 
 def _fetch_overpass(query: str, timeout: int) -> dict:
-    """Execute an Overpass query, trying multiple mirrors."""
+    """Execute an Overpass query, trying multiple mirrors.
+
+    A descriptive User-Agent is sent on every request (public mirrors reject
+    the default python-requests UA). Transient failures (429 rate-limit, 5xx
+    gateway errors) are retried with a short backoff before moving on to the
+    next mirror, so a single busy mirror doesn't fail the whole request.
+    """
     last_err = None
     for url in OVERPASS_URLS:
-        try:
-            resp = requests.post(url, data={"data": query}, timeout=timeout + 30)
-            resp.raise_for_status()
-            # Overpass sometimes returns 200 with HTML error body
-            content_type = resp.headers.get("content-type", "")
-            if "json" not in content_type:
-                raise ValueError(f"Overpass returned non-JSON response ({content_type})")
-            return resp.json()
-        except Exception as exc:
-            last_err = exc
-            continue
+        for attempt in range(2):  # one retry per mirror on transient errors
+            try:
+                resp = requests.post(
+                    url,
+                    data={"data": query},
+                    headers=OVERPASS_HEADERS,
+                    timeout=timeout + 30,
+                )
+                # Retry the same mirror once on rate-limit / gateway errors.
+                if resp.status_code in (429, 502, 503, 504) and attempt == 0:
+                    last_err = requests.HTTPError(
+                        f"{resp.status_code} from {url}", response=resp
+                    )
+                    time.sleep(2)
+                    continue
+                resp.raise_for_status()
+                # Overpass sometimes returns 200 with HTML error body
+                content_type = resp.headers.get("content-type", "")
+                if "json" not in content_type:
+                    raise ValueError(f"Overpass returned non-JSON response ({content_type})")
+                return resp.json()
+            except Exception as exc:
+                last_err = exc
+                break  # non-transient (or retry exhausted): try next mirror
     raise last_err  # type: ignore[misc]
 
 
