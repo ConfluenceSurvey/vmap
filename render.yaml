@@ -4,7 +4,10 @@ services:
     name: vmap
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn vmap.server:app --bind 0.0.0.0:$PORT
+    # --timeout 300: Overpass queries can take 1-2+ min; the default 30s worker
+    # timeout would kill the worker mid-request (generic 500). --threads 8 keeps
+    # one slow export from blocking the homepage / other users.
+    startCommand: gunicorn vmap.server:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 300
     envVars:
       - key: FLASK_ENV
         value: production
