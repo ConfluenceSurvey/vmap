@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request, send_file
+from PIL import Image
 
 from .overpass import fetch_features, fetch_features_tiled, AVAILABLE_LAYERS
 from .projection import Projector
@@ -190,6 +191,7 @@ def _run_export(params: dict) -> tuple[bytes, str, str, int]:
     image_filename = None
     image_bytes = None
     image_bounds = None
+    image_size_px = None
 
     if imagery != "none":
         try:
@@ -197,6 +199,8 @@ def _run_export(params: dict) -> tuple[bytes, str, str, int]:
                 south, west, north, east, source=imagery)
             # Relative filename so the DXF IMAGE reference resolves next to the PNG.
             image_filename = f"vicinity_bg_{ts}.png"
+            with Image.open(io.BytesIO(image_bytes)) as im:
+                image_size_px = im.size
         except Exception as exc:
             raise GenerationError(f"Tile download failed: {exc}", 502) from exc
 
@@ -205,7 +209,8 @@ def _run_export(params: dict) -> tuple[bytes, str, str, int]:
         doc = build_dxf(features, projector, south, west, north, east,
                         params["units"], params["uppercase"], params["text_type"],
                         show_labels=params["show_labels"],
-                        image_path=image_filename, image_bounds=image_bounds)
+                        image_path=image_filename, image_bounds=image_bounds,
+                        image_size_px=image_size_px)
         # ezdxf.write requires a text stream
         dxf_stream = io.StringIO()
         doc.write(dxf_stream)

@@ -179,6 +179,7 @@ def build_dxf(features: dict[str, list[Feature]], projector: Projector,
               show_labels: bool = True,
               image_path: str | None = None,
               image_bounds: tuple[float, float, float, float] | None = None,
+              image_size_px: tuple[int, int] | None = None,
               ) -> ezdxf.document.Drawing:
     """Create a DXF document with styled polylines, labels, border, and optional image."""
     doc = ezdxf.new("R2010")
@@ -216,7 +217,11 @@ def build_dxf(features: dict[str, list[Feature]], projector: Projector,
         img_width = abs(img_tr[0] - img_bl[0])
         img_height = abs(img_tr[1] - img_bl[1])
         if img_width > 0 and img_height > 0:
-            img_def = doc.add_image_def(filename=image_path, size_in_pixel=(1, 1))
+            # IMAGEDEF must carry the real pixel dimensions: CAD derives the
+            # displayed size from (pixel count x per-pixel vector). With a
+            # placeholder (1, 1) the image came out hundreds of times too big.
+            px = image_size_px or (1, 1)
+            img_def = doc.add_image_def(filename=image_path, size_in_pixel=px)
             msp.add_image(
                 insert=img_bl,
                 size_in_units=(img_width, img_height),
