@@ -19,13 +19,17 @@ try:
 except Exception:  # pragma: no cover - very old urllib3
     pass
 
-# Worldwide mirrors only. overpass.osm.ch was removed: it only holds Swiss
-# data, so a fallthrough to it returned an empty (but HTTP 200) result and the
-# user saw "No features found" for any area outside Switzerland.
+# Worldwide mirrors only, ordered by reachability FROM RENDER (see logs):
+#   - overpass-api.de refuses connections from Render's egress range
+#     ("[Errno 111] Connection refused"), so it goes last as a fallback that
+#     still works for local runs.
+#   - overpass.osm.ch was removed: it only holds Swiss data, so a fallthrough
+#     returned an empty (but HTTP 200) result and the user saw "No features
+#     found" for any area outside Switzerland.
 OVERPASS_URLS = [
-    "https://overpass-api.de/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
 ]
 
 # The OSM/Overpass usage policy requires a descriptive User-Agent that
