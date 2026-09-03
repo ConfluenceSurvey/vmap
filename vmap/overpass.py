@@ -2,15 +2,20 @@
 
 from dataclasses import dataclass, field
 
+import logging
 import math
 import time
 import requests
 
+log = logging.getLogger("vmap.overpass")
+
+# Worldwide mirrors only. overpass.osm.ch was removed: it only holds Swiss
+# data, so a fallthrough to it returned an empty (but HTTP 200) result and the
+# user saw "No features found" for any area outside Switzerland.
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
-    "https://overpass.osm.ch/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
 ]
 
 # The OSM/Overpass usage policy requires a descriptive User-Agent that
@@ -181,6 +186,7 @@ def _fetch_overpass(query: str, timeout: int) -> dict:
     last_err = None
     for url in OVERPASS_URLS:
         for attempt in range(2):  # one retry per mirror on transient errors
+            t0 = time.monotonic()
             try:
                 resp = requests.post(
                     url,
@@ -188,6 +194,9 @@ def _fetch_overpass(query: str, timeout: int) -> dict:
                     headers=OVERPASS_HEADERS,
                     timeout=timeout + 30,
                 )
+                log.info("overpass mirror=%s attempt=%d http=%d bytes=%d dur_s=%.1f",
+                         url, attempt, resp.status_code, len(resp.content),
+                         time.monotonic() - t0)
                 # Retry the same mirror once on rate-limit / gateway errors.
                 if resp.status_code in (429, 502, 503, 504) and attempt == 0:
                     last_err = requests.HTTPError(
@@ -202,6 +211,8 @@ def _fetch_overpass(query: str, timeout: int) -> dict:
                     raise ValueError(f"Overpass returned non-JSON response ({content_type})")
                 return resp.json()
             except Exception as exc:
+                log.warning("overpass mirror=%s attempt=%d failed dur_s=%.1f err=%s",
+                            url, attempt, time.monotonic() - t0, exc)
                 last_err = exc
                 break  # non-transient (or retry exhausted): try next mirror
     raise last_err  # type: ignore[misc]

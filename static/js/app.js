@@ -93,6 +93,62 @@ map.on(L.Draw.Event.EDITED, function () {
     }
 });
 
+// Extract a readable message from a failed response (JSON error, short
+// text, or a generic status line for opaque proxy error pages).
+async function readError(resp) {
+    let errMsg = `Server error ${resp.status}`;
+    try {
+        const err = await resp.json();
+        errMsg = err.error || errMsg;
+    } catch {
+        const text = await resp.text().catch(() => "");
+        if (text.length < 200) errMsg = text || errMsg;
+    }
+    return errMsg;
+}
+
+async function postJson(url, body) {
+    const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(await readError(resp));
+    return resp.json();
+}
+
+const JOB_MAX_WAIT_MS = 15 * 60 * 1000;
+
+// Poll /api/jobs/<id> until done or error. Transient network failures on a
+// single poll are retried rather than failing the whole export.
+async function pollJob(job, onTick) {
+    const intervalMs = job.poll_ms || 2000;
+    const deadline = Date.now() + JOB_MAX_WAIT_MS;
+    let consecutiveFailures = 0;
+    while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, intervalMs));
+        let state;
+        try {
+            const resp = await fetch(job.status_url, { cache: "no-store" });
+            if (resp.status === 404) throw new Error(await readError(resp));
+            if (!resp.ok) {
+                if (++consecutiveFailures >= 5) throw new Error(await readError(resp));
+                continue;
+            }
+            state = await resp.json();
+            consecutiveFailures = 0;
+        } catch (err) {
+            if (err.message.startsWith("Unknown or expired job")) throw err;
+            if (++consecutiveFailures >= 5) throw err;
+            continue;
+        }
+        if (state.status === "done") return state;
+        if (state.status === "error") throw new Error(state.error || "Export failed.");
+        if (onTick) onTick(state);
+    }
+    throw new Error("Export timed out. Try a smaller area or the 'fast' large-area mode.");
+}
+
 btnGenerate.addEventListener("click", async function () {
     if (!currentBounds) return;
 
@@ -142,30 +198,25 @@ btnGenerate.addEventListener("click", async function () {
     setStatus(statusMsg, "loading");
 
     try {
-        const resp = await fetch("/api/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+        // Queue the export, then poll. Each request stays short so proxy /
+        // worker timeouts can't kill a long Overpass fetch mid-flight.
+        const job = await postJson("/api/generate", payload);
+        const startedAt = Date.now();
+        const baseMsg = statusMsg;
+
+        const done = await pollJob(job, function (state) {
+            const secs = Math.round((Date.now() - startedAt) / 1000);
+            const phase = state.status === "queued" ? "Queued" : "Working";
+            setStatus(`${baseMsg} ${phase}, ${secs}s elapsed.`, "loading");
         });
 
-        if (!resp.ok) {
-            let errMsg = `Server error ${resp.status}`;
-            try {
-                const err = await resp.json();
-                errMsg = err.error || errMsg;
-            } catch {
-                // Response wasn't JSON (e.g., HTML error page from proxy)
-                const text = await resp.text().catch(() => "");
-                if (text.length < 200) errMsg = text || errMsg;
-            }
-            throw new Error(errMsg);
-        }
-
         // Download the file
+        const resp = await fetch(done.download_url);
+        if (!resp.ok) throw new Error(await readError(resp));
         const blob = await resp.blob();
         const disposition = resp.headers.get("Content-Disposition") || "";
         const match = disposition.match(/filename="?(.+?)"?$/);
-        const filename = match ? match[1] : (imagery !== "none" ? "vicinity_map.zip" : "vicinity_map.dxf");
+        const filename = match ? match[1] : (done.filename || (imagery !== "none" ? "vicinity_map.zip" : "vicinity_map.dxf"));
 
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
