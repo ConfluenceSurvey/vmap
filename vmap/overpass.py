@@ -9,6 +9,16 @@ import requests
 
 log = logging.getLogger("vmap.overpass")
 
+# Force IPv4. Render's egress has no IPv6 route, and mirrors that publish AAAA
+# records (overpass-api.de, overpass.private.coffee) resolve to v6 first, which
+# failed instantly with "[Errno 101] Network is unreachable" and pushed every
+# export onto the slowest mirror.
+try:
+    import urllib3.util.connection as _urllib3_conn
+    _urllib3_conn.HAS_IPV6 = False
+except Exception:  # pragma: no cover - very old urllib3
+    pass
+
 # Worldwide mirrors only. overpass.osm.ch was removed: it only holds Swiss
 # data, so a fallthrough to it returned an empty (but HTTP 200) result and the
 # user saw "No features found" for any area outside Switzerland.
